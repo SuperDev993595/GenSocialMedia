@@ -15,7 +15,7 @@ A Next.js application that generates engaging social media content using OpenAI'
 - **Framework**: Next.js 14 (App Router)
 - **Language**: TypeScript
 - **Database**: PostgreSQL with Prisma ORM
-- **AI API**: OpenAI (GPT-4o-mini)
+- **AI API**: OpenAI (GPT-5)
 - **Styling**: Tailwind CSS
 - **Validation**: Zod
 
@@ -229,6 +229,37 @@ Make sure to:
 - Set all environment variables
 - Run database migrations before deployment
 - Ensure your database is accessible from the deployment platform
+
+## Testing
+
+### Manual Testing
+
+The application can be tested manually by:
+
+1. **Content Generation**:
+   - Enter a prompt in the form
+   - Select a platform (optional)
+   - Click "Generate Content"
+   - Verify structured output (caption + hashtags)
+
+2. **Post History**:
+   - Generate a few posts
+   - Verify they appear in the history section
+   - Check pagination if you have many posts
+
+3. **Error Handling**:
+   - Test with invalid inputs
+   - Test with missing API keys
+   - Test with database connection issues
+
+### Automated Testing (Future)
+
+For production, consider adding:
+- Unit tests for utility functions
+- Integration tests for API routes
+- E2E tests for user flows
+
+See `ARCHITECTURE.md` for detailed testing strategy recommendations.
 
 ## Troubleshooting
 

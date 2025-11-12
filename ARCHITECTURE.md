@@ -1,48 +1,158 @@
 # Architecture Document
 
-## AI Social Media Content Generator
-
-### Overview
+## Overview
 
 This document outlines the architectural decisions, trade-offs, and scaling considerations for the AI Social Media Content Generator application. The application is built as a Next.js full-stack application that integrates with OpenAI's API to generate social media content and stores the results in PostgreSQL.
 
----
+## Technology Stack
 
-## Architecture Decisions
+### Core Technologies
 
-### 1. Framework: Next.js with App Router
+1. **Next.js 14 (App Router)**
+   - **Decision**: Use Next.js 14 with App Router for modern React development
+   - **Rationale**: 
+     - Server-side rendering and API routes in one framework
+     - Built-in optimizations for performance
+     - TypeScript support out of the box
+     - Easy deployment to Vercel
 
-**Decision**: Use Next.js 14 with the App Router pattern.
+2. **TypeScript**
+   - **Decision**: Use TypeScript for type safety
+   - **Rationale**: 
+     - Catch errors at compile time
+     - Better IDE support and autocomplete
+     - Improved code maintainability
 
-**Rationale**:
-- **Full-Stack Capabilities**: Next.js provides both frontend and backend in a single framework, reducing complexity
-- **API Routes**: Built-in API route handlers eliminate the need for a separate backend server
-- **Server Components**: Leverages React Server Components for better performance
-- **TypeScript Support**: Excellent TypeScript integration out of the box
-- **Deployment**: Easy deployment on Vercel or other platforms
+3. **PostgreSQL with Prisma ORM**
+   - **Decision**: Use PostgreSQL as the database with Prisma as the ORM
+   - **Rationale**: 
+     - PostgreSQL is robust and scalable
+     - Prisma provides type-safe database access
+     - Excellent migration system
+     - Works well with Next.js
 
-**Trade-offs**:
-- ✅ Pros: Single codebase, fast development, good performance
-- ❌ Cons: Less flexibility than separate frontend/backend, vendor lock-in to Next.js patterns
+4. **OpenAI API (GPT-4o)**
+   - **Decision**: Use OpenAI's GPT-4o model via their official SDK
+   - **Rationale**: 
+     - High-quality content generation
+     - Reliable API with good documentation
+     - JSON response format support for structured output
+     - Industry-standard AI service
 
----
+5. **Tailwind CSS**
+   - **Decision**: Use Tailwind CSS for styling
+   - **Rationale**: 
+     - Utility-first approach for rapid development
+     - Consistent design system
+     - Small bundle size with purging
 
-### 2. Database: PostgreSQL with Prisma ORM
+## Application Architecture
 
-**Decision**: Use PostgreSQL as the database with Prisma as the ORM.
+### Directory Structure
 
-**Rationale**:
-- **Relational Data**: PostgreSQL is ideal for structured data with relationships
-- **ACID Compliance**: Ensures data integrity for critical operations
-- **Prisma Benefits**: Type-safe queries, migrations, and excellent developer experience
-- **Scalability**: PostgreSQL can handle significant scale with proper indexing
-- **Hosted Options**: Easy to use with Supabase, Neon, or other managed services
+```
+GenSocialMedia/
+├── app/                    # Next.js App Router
+│   ├── api/               # API routes
+│   │   ├── generate/      # Content generation endpoint
+│   │   └── posts/         # Posts retrieval endpoint
+│   ├── layout.tsx         # Root layout
+│   ├── page.tsx           # Home page
+│   └── globals.css        # Global styles
+├── components/            # React components
+│   ├── ContentGenerator.tsx
+│   └── PostHistory.tsx
+├── lib/                  # Utility libraries
+│   ├── openai.ts         # OpenAI integration
+│   └── prisma.ts         # Prisma client singleton
+└── prisma/
+    └── schema.prisma     # Database schema
+```
 
-**Trade-offs**:
-- ✅ Pros: Strong consistency, type safety, mature ecosystem
-- ❌ Cons: Can be overkill for simple use cases, requires connection pooling at scale
+### Data Flow
 
-**Schema Design**:
+1. **Content Generation Flow**:
+   ```
+   User Input → ContentGenerator Component 
+   → POST /api/generate 
+   → OpenAI API (generateSocialMediaContent)
+   → Parse JSON Response
+   → Store in Database
+   → Return to Frontend
+   ```
+
+2. **Post Retrieval Flow**:
+   ```
+   PostHistory Component 
+   → GET /api/posts 
+   → Prisma Query
+   → Return Posts with Pagination
+   ```
+
+### API Design
+
+#### POST `/api/generate`
+
+**Purpose**: Generate social media content from a user prompt
+
+**Request**:
+```typescript
+{
+  prompt: string
+  platform?: string
+  userId?: string
+}
+```
+
+**Response**:
+```typescript
+{
+  success: boolean
+  data: {
+    id: string
+    prompt: string
+    content: string
+    structuredContent: {
+      caption: string
+      hashtags: string[]
+    }
+    platform: string | null
+    createdAt: string
+  }
+}
+```
+
+**Error Handling**:
+- 400: Validation errors (Zod schema validation)
+- 429: Rate limit errors from OpenAI
+- 500: Server errors
+- 503: Database connection errors
+
+#### GET `/api/posts`
+
+**Purpose**: Retrieve generated posts with pagination
+
+**Query Parameters**:
+- `userId` (optional): Filter by user
+- `limit` (optional): Number of posts (default: 10)
+- `offset` (optional): Pagination offset (default: 0)
+
+**Response**:
+```typescript
+{
+  success: boolean
+  data: Post[]
+  pagination: {
+    total: number
+    limit: number
+    offset: number
+    hasMore: boolean
+  }
+}
+```
+
+### Database Schema
+
 ```prisma
 model GeneratedPost {
   id          String   @id @default(cuid())
@@ -60,252 +170,193 @@ model GeneratedPost {
 
 **Design Decisions**:
 - Use CUID for IDs (better than auto-increment for distributed systems)
-- Store content as Text type (supports long-form content)
-- Optional `userId` field for future multi-user support
-- Indexes on `userId` and `createdAt` for efficient queries
+- Store full content as Text (supports long posts)
+- Optional platform and userId for flexibility
+- Indexes on userId and createdAt for query performance
 
----
+### OpenAI Integration
 
-### 3. AI Integration: OpenAI GPT-4o-mini
+**Structured Output**:
+- Uses `response_format: { type: 'json_object' }` to ensure JSON responses
+- Expected format:
+  ```json
+  {
+    "caption": "Main caption text",
+    "hashtags": ["#hashtag1", "#hashtag2"]
+  }
+  ```
+- Fallback handling if JSON parsing fails
 
-**Decision**: Use OpenAI's GPT-4o-mini model via their official SDK.
-
-**Rationale**:
-- **Cost-Effective**: GPT-4o-mini provides good quality at lower cost than GPT-4
-- **Reliability**: OpenAI has robust infrastructure and API
-- **Flexibility**: Easy to switch models or adjust parameters
-- **Official SDK**: Well-maintained TypeScript SDK with proper error handling
-
-**Trade-offs**:
-- ✅ Pros: High-quality output, reliable API, good documentation
-- ❌ Cons: External dependency, costs per request, potential rate limits
-
-**Implementation**:
-- System prompt for consistent output format
-- Configurable `maxTokens` and `temperature`
-- Platform-specific prompts for tailored content
-- Proper error handling for rate limits and API failures
-
----
-
-### 4. Error Handling Strategy
-
-**Decision**: Implement comprehensive error handling at multiple layers.
-
-**Layers**:
-1. **Validation Layer**: Zod schema validation for API inputs
-2. **API Layer**: Try-catch blocks with specific error types
-3. **Client Layer**: User-friendly error messages
-
-**Error Types Handled**:
-- Validation errors (400)
-- Rate limit errors (429)
-- API errors (500)
-- Database errors (500)
-
-**Trade-offs**:
-- ✅ Pros: Better user experience, easier debugging
-- ❌ Cons: More code, potential information leakage (mitigated by generic messages)
-
----
-
-### 5. State Management: React Hooks
-
-**Decision**: Use React hooks (useState, useEffect) for local state management.
-
-**Rationale**:
-- **Simplicity**: No need for external state management for this scope
-- **Built-in**: React hooks are sufficient for component-level state
-- **Performance**: Minimal overhead, good for small to medium applications
-
-**Trade-offs**:
-- ✅ Pros: Simple, no additional dependencies
-- ❌ Cons: Could become complex with more features (would need Context API or Zustand)
-
----
-
-### 6. Styling: Tailwind CSS
-
-**Decision**: Use Tailwind CSS for styling.
-
-**Rationale**:
-- **Rapid Development**: Utility-first approach speeds up UI development
-- **Consistency**: Design system built-in
-- **Bundle Size**: Only includes used styles
-- **Modern**: Widely adopted, good documentation
-
-**Trade-offs**:
-- ✅ Pros: Fast development, consistent design, small bundle
-- ❌ Cons: Can be verbose, requires learning utility classes
-
----
-
-## Scalability Considerations
-
-### Current Architecture Limitations
-
-1. **Single Database Instance**: No read replicas or sharding
-2. **No Caching**: Every request hits the database
-3. **Synchronous API Calls**: OpenAI API calls block the request
-4. **No Queue System**: No background job processing
-5. **Single Server**: No horizontal scaling
-
-### Scaling Strategies
-
-#### 1. Database Scaling
-
-**Short-term (0-10K users)**:
-- Use connection pooling (PgBouncer or Prisma's built-in pooling)
-- Optimize queries with proper indexes
-- Use read replicas for GET requests
-
-**Medium-term (10K-100K users)**:
-- Implement database sharding by `userId`
-- Use caching layer (Redis) for frequently accessed posts
-- Consider time-series database for analytics
-
-**Long-term (100K+ users)**:
-- Move to distributed database (CockroachDB, Vitess)
-- Implement eventual consistency where appropriate
-- Archive old posts to cold storage
-
-#### 2. API Scaling
-
-**Short-term**:
-- Add request rate limiting per user/IP
-- Implement request queuing for OpenAI API calls
-- Use edge functions for static content
-
-**Medium-term**:
-- Move OpenAI calls to background jobs (BullMQ, AWS SQS)
-- Implement WebSocket for real-time updates
-- Add CDN for static assets
-
-**Long-term**:
-- Microservices architecture:
-  - Content Generation Service
-  - User Service
-  - Analytics Service
-- API Gateway for routing and rate limiting
-- Load balancing across multiple instances
-
-#### 3. Caching Strategy
-
-**Implementation**:
-- **Redis** for:
-  - Frequently accessed posts (cache for 5-10 minutes)
-  - Rate limit counters
-  - Session data (if adding authentication)
-
-**Cache Invalidation**:
-- Invalidate on post creation/update
-- TTL-based expiration
-- Manual invalidation for critical updates
-
-#### 4. Background Job Processing
-
-**For OpenAI API Calls**:
-- Queue system (BullMQ, AWS SQS, or similar)
-- Worker processes to handle generation
-- WebSocket or polling for status updates
-- Retry logic with exponential backoff
-
-**Benefits**:
-- Non-blocking API responses
-- Better error handling
-- Rate limit management
-- Cost optimization (batch processing)
-
-#### 5. Monitoring and Observability
-
-**Essential Metrics**:
-- API response times
-- OpenAI API latency and errors
-- Database query performance
-- Error rates by type
-- User activity metrics
-
-**Tools**:
-- Application: Sentry for error tracking
-- Performance: Datadog, New Relic, or Vercel Analytics
-- Logs: Structured logging with Winston or Pino
-- Database: pg_stat_statements for query analysis
-
----
+**Error Handling**:
+- Rate limit detection (429 status)
+- API error handling with user-friendly messages
+- Fallback to plain text if structured output fails
 
 ## Security Considerations
 
-### Current Implementation
+1. **API Key Management**:
+   - OpenAI API key stored in environment variables
+   - Never exposed to client-side code
+   - Should be rotated periodically
 
-1. **Input Validation**: Zod schemas validate all inputs
-2. **SQL Injection**: Prisma prevents SQL injection
-3. **API Key Security**: Environment variables for sensitive data
-4. **Error Messages**: Generic error messages to prevent information leakage
+2. **Input Validation**:
+   - Zod schema validation for all API inputs
+   - Prompt length limits (max 1000 characters)
+   - SQL injection prevention via Prisma ORM
 
-### Future Enhancements
+3. **Error Messages**:
+   - Detailed errors in development
+   - Generic errors in production
+   - No sensitive information in error responses
 
-1. **Authentication**: Add user authentication (NextAuth.js, Clerk)
-2. **Authorization**: Role-based access control
-3. **Rate Limiting**: Per-user rate limiting
-4. **API Key Rotation**: Support for rotating OpenAI API keys
-5. **Audit Logging**: Log all API calls and data access
-6. **Content Moderation**: Filter inappropriate content before storage
+## Performance Considerations
 
----
+1. **Database**:
+   - Indexes on frequently queried fields
+   - Pagination to limit result sets
+   - Connection pooling via Prisma
 
-## Cost Optimization
+2. **API Calls**:
+   - OpenAI API calls are synchronous (blocking)
+   - Consider async job queue for production scale
+   - Rate limiting should be implemented
 
-### Current Costs
+3. **Frontend**:
+   - Client-side state management
+   - Optimistic UI updates
+   - Loading states for better UX
 
-- **OpenAI API**: ~$0.15 per 1M input tokens, ~$0.60 per 1M output tokens (GPT-4o-mini)
-- **Database**: Varies by provider (Supabase free tier, Neon free tier available)
-- **Hosting**: Vercel free tier for small projects
+## Scalability Considerations
 
-### Optimization Strategies
+### Current Limitations
 
-1. **Caching**: Reduce redundant API calls
-2. **Token Optimization**: Tune `maxTokens` based on platform
-3. **Batch Processing**: Group similar requests
-4. **Model Selection**: Use cheaper models for simple tasks
-5. **Database**: Archive old posts, use cheaper storage tiers
+1. **Synchronous API Calls**: OpenAI API calls block the request
+2. **No Caching**: Every request hits the database
+3. **No Rate Limiting**: Users can make unlimited requests
+4. **Single Database**: No read replicas
 
----
+### Future Improvements
+
+1. **Background Jobs**:
+   - Move OpenAI calls to background jobs (BullMQ, AWS SQS)
+   - Webhook or polling for job completion
+   - Better user experience for long-running generations
+
+2. **Caching**:
+   - Redis cache for frequently accessed posts
+   - Cache OpenAI responses for similar prompts
+   - CDN for static assets
+
+3. **Rate Limiting**:
+   - Implement per-user rate limits
+   - Use middleware like `@upstash/ratelimit`
+   - Protect against abuse
+
+4. **Database Scaling**:
+   - Read replicas for GET requests
+   - Connection pooling optimization
+   - Consider sharding for very large datasets
+
+5. **Monitoring**:
+   - Error tracking (Sentry)
+   - Performance monitoring (Vercel Analytics)
+   - OpenAI API usage tracking
+
+## Deployment Architecture
+
+### Recommended: Vercel
+
+**Why Vercel**:
+- Zero-config Next.js deployment
+- Automatic HTTPS
+- Edge functions support
+- Built-in environment variable management
+- Database connection pooling
+
+### Alternative Platforms
+
+- **Railway**: Good for full-stack apps with databases
+- **Netlify**: Similar to Vercel, good Next.js support
+- **AWS Amplify**: For AWS ecosystem integration
+- **Self-hosted**: Docker containers on VPS/cloud
+
+### Environment Variables
+
+Required:
+- `DATABASE_URL`: PostgreSQL connection string
+- `OPENAI_API_KEY`: OpenAI API key
+
+Optional:
+- `NODE_ENV`: Environment (development/production)
+
+## Testing Strategy
+
+### Current State
+- No automated tests currently implemented
+
+### Recommended Testing
+
+1. **Unit Tests**:
+   - Test OpenAI integration with mocks
+   - Test Prisma queries
+   - Test utility functions
+
+2. **Integration Tests**:
+   - Test API routes end-to-end
+   - Test database operations
+   - Test error handling
+
+3. **E2E Tests**:
+   - Test user flows with Playwright/Cypress
+   - Test content generation flow
+   - Test post history display
+
+## Error Handling Strategy
+
+1. **API Errors**:
+   - Try-catch blocks in all API routes
+   - Specific error types (ZodError, PrismaError, OpenAIError)
+   - Appropriate HTTP status codes
+   - User-friendly error messages
+
+2. **Frontend Errors**:
+   - Error boundaries for React components
+   - Loading and error states
+   - User feedback for all actions
+
+3. **Database Errors**:
+   - Connection error detection
+   - Retry logic for transient errors
+   - Graceful degradation
 
 ## Future Enhancements
 
-### Phase 1 (Short-term)
-- User authentication and authorization
-- Post editing and regeneration
-- Export posts (copy, download)
-- Basic analytics (views, generations per day)
+1. **Multi-user Support**:
+   - Authentication system (NextAuth.js)
+   - User-specific post filtering
+   - User preferences
 
-### Phase 2 (Medium-term)
-- Multi-language support
-- Content templates
-- Scheduled posting integration
-- Advanced filtering and search
+2. **Content Features**:
+   - Edit generated content
+   - Save drafts
+   - Export to different formats
+   - Scheduled posting
 
-### Phase 3 (Long-term)
-- Multi-AI provider support (Anthropic, etc.)
-- A/B testing for content
-- Team collaboration features
-- API for third-party integrations
+3. **AI Enhancements**:
+   - Multiple AI model support
+   - Custom prompts/templates
+   - A/B testing for content
+   - Analytics on generated content
 
----
+4. **Platform-Specific Features**:
+   - Character count limits per platform
+   - Platform-specific formatting
+   - Image generation integration
+   - Link previews
 
 ## Conclusion
 
-The current architecture is designed for rapid development and initial scalability. It prioritizes:
+This architecture provides a solid foundation for a social media content generation application. The use of modern technologies (Next.js, TypeScript, Prisma) ensures maintainability and scalability. The structured approach to error handling and API design makes the application robust and user-friendly.
 
-1. **Developer Experience**: Easy to set up, maintain, and extend
-2. **Type Safety**: TypeScript and Prisma ensure fewer runtime errors
-3. **Performance**: Next.js optimizations and efficient database queries
-4. **Reliability**: Comprehensive error handling and validation
-
-As the application scales, the suggested enhancements (caching, queuing, microservices) can be incrementally adopted based on actual usage patterns and requirements.
-
----
-
-**Document Version**: 1.0  
-**Last Updated**: November 2024
+For production deployment, consider implementing the scalability improvements mentioned above, especially background job processing and rate limiting.
 
