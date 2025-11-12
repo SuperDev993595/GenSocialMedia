@@ -16,16 +16,16 @@ export async function POST(request: NextRequest) {
     const { prompt, platform, userId } = generateSchema.parse(body)
 
     // Generate content using OpenAI
-    const content = await generateSocialMediaContent({
+    const structuredContent = await generateSocialMediaContent({
       prompt,
       platform: platform || 'general',
     })
 
-    // Store in database
+    // Store in database (using fullText for backward compatibility)
     const generatedPost = await prisma.generatedPost.create({
       data: {
         prompt,
-        content,
+        content: structuredContent.fullText || structuredContent.caption,
         platform: platform || null,
         userId: userId || null,
       },
@@ -38,6 +38,10 @@ export async function POST(request: NextRequest) {
           id: generatedPost.id,
           prompt: generatedPost.prompt,
           content: generatedPost.content,
+          structuredContent: {
+            caption: structuredContent.caption,
+            hashtags: structuredContent.hashtags,
+          },
           platform: generatedPost.platform,
           createdAt: generatedPost.createdAt,
         },

@@ -6,6 +6,10 @@ interface GeneratedPost {
   id: string
   prompt: string
   content: string
+  structuredContent?: {
+    caption: string
+    hashtags: string[]
+  }
   platform: string | null
   createdAt: string
 }
@@ -135,11 +139,39 @@ export default function ContentGenerator({
           <h3 className="text-lg font-semibold text-gray-800 mb-2">
             Generated Content
           </h3>
-          <div className="bg-white p-4 rounded border border-gray-200">
-            <p className="text-gray-700 whitespace-pre-wrap">
-              {generatedPost.content}
-            </p>
-          </div>
+          
+          {generatedPost.structuredContent ? (
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded border border-gray-200">
+                <h4 className="text-sm font-semibold text-gray-600 mb-2">Caption:</h4>
+                <p className="text-gray-700 whitespace-pre-wrap">
+                  {generatedPost.structuredContent.caption}
+                </p>
+              </div>
+              {generatedPost.structuredContent.hashtags.length > 0 && (
+                <div className="bg-white p-4 rounded border border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-600 mb-2">Hashtags:</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {generatedPost.structuredContent.hashtags.map((hashtag, index) => (
+                      <span
+                        key={index}
+                        className="inline-block px-2 py-1 bg-indigo-100 text-indigo-700 rounded text-sm"
+                      >
+                        {hashtag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="bg-white p-4 rounded border border-gray-200">
+              <p className="text-gray-700 whitespace-pre-wrap">
+                {generatedPost.content}
+              </p>
+            </div>
+          )}
+          
           {generatedPost.platform && (
             <p className="mt-2 text-sm text-gray-600">
               Platform: <span className="font-medium">{generatedPost.platform}</span>
