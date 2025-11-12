@@ -23,32 +23,15 @@ export interface StructuredContent {
 export async function generateSocialMediaContent(
   params: GenerateContentParams
 ): Promise<StructuredContent> {
-  const { prompt, platform = 'general', maxTokens = 500 } = params
-
-  const systemPrompt = `You are an expert social media content creator. Generate engaging, authentic social media posts based on the user's prompt. 
-The content should be:
-- Engaging and authentic
-- Appropriate for the specified platform (${platform})
-- Well-formatted and ready to post
-- Between 100-500 words depending on the platform
-
-IMPORTANT: You must respond with a valid JSON object in the following format:
-{
-  "caption": "The main caption text (without hashtags)",
-  "hashtags": ["#hashtag1", "#hashtag2", "#hashtag3"]
-}
-
-The caption should be the main content, and hashtags should be an array of relevant hashtags for the platform and topic. Include 5-15 relevant hashtags.`
+  const { prompt } = params
 
   try {
     const completion = await openai.chat.completions.create({
       model: 'gpt-5',
       messages: [
-        { role: 'system', content: systemPrompt },
         { role: 'user', content: prompt },
       ],
-      max_tokens: maxTokens,
-      temperature: 0.7,
+      
       response_format: { type: 'json_object' },
     })
 
