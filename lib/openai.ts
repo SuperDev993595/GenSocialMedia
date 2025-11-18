@@ -32,7 +32,7 @@ export async function generateSocialMediaContent(
         { role: 'user', content: prompt },
       ],
       
-      response_format: { type: 'json_object' },
+      // response_format: { type: 'json_object' },
     })
 
     const content = completion.choices[0]?.message?.content
